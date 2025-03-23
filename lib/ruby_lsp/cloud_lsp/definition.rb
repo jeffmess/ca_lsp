@@ -6,8 +6,6 @@ module RubyLsp
       include Requests::Support::Common
 
       def initialize(response_builder, deps, docs, dispatcher)
-        STDERR.puts "[CloudLSP] Initialize GOTO Definition"
-
         @response_builder = response_builder
         @deps             = deps
         @docs             = docs

@@ -48,7 +48,6 @@ module RubyLsp
 
       def create_hover_listener(response_builder, node_context, dispatcher)
         return unless node_context.node.respond_to? :name
-        # return if node_context.node.is_a? Prism::ProgramNode
         return unless @deps[node_context.node.name]
 
         Hover.new(response_builder, @deps, @docs, dispatcher)
@@ -56,8 +55,6 @@ module RubyLsp
 
       def create_definition_listener(response_builder, uri, node_context, dispatcher)
         return unless @deps[node_context.node.name]
-
-        STDERR.puts "Register goto def dispatcher"
 
         Definition.new(response_builder, @deps, @docs, dispatcher)
       end

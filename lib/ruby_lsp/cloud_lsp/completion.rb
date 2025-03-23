@@ -9,19 +9,11 @@ module RubyLsp
         @response_builder = response_builder
         @helpers_hash     = helpers_hash
         @docs             = docs
-        dispatcher.register(self, :on_call_node_enter) #, RubyLsp::Interface::CompletionParams)
+        dispatcher.register(self, :on_call_node_enter)
       end
 
 
       def on_call_node_enter(node)
-        # log "on call node"
-        # log "DCall node?#{node.is_a?(Prism::CallNode)}"
-        # log "includes? #{node.name}"
-
-        # log @helpers_hash.keys
-        STDERR.puts "node name: #{node.name}"
-        # return unless node.name.start_with?('ui_') || node.name.start_with?('ca_')
-
         location = node.location
 
         @helpers_hash.each do |key, value|
@@ -34,7 +26,7 @@ module RubyLsp
           @response_builder << RubyLsp::Interface::CompletionItem.new(
             label: key,
             kind: RubyLsp::Constant::CompletionItemKind::VARIABLE,
-            detail: yard, #"#{key}#{signature} → #{value}",
+            detail: yard,
             documentation: {
               kind: "markdown",
               value: "Custom method from your addon"

@@ -37,17 +37,11 @@ module RubyLsp
           # STDERR.puts "Attempting to process #{component_path}"
           next unless File.exist?(component_path)
 
-          file_code = File.read(component_path)
-          result    = Prism.parse(file_code)
-          _         = YARD.parse(component_path)
-          ast       = result.value
-
-          # TODO - clean this up and recurse
-          class_node = ast.statements.body.find do |node|
-            node.is_a?(Prism::ModuleNode) && %w[UI CA].include?(node.constant_path.full_name) # == "UI"
-          end&.body&.body&.find do |node|
-            node.is_a?(Prism::ClassNode) && node.constant_path.full_name.end_with?("Component") # == "LogoComponent"
-          end
+          file_code  = File.read(component_path)
+          result     = Prism.parse(file_code)
+          _          = YARD.parse(component_path)
+          ast        = result.value
+          class_node = class_node(ast.statements.body)
 
           next unless class_node
 
@@ -69,6 +63,21 @@ module RubyLsp
         end
       end
 
+      def class_node(node)
+        return node if node.is_a?(Prism::ClassNode)
+        return false if node.nil?
+
+        node = node.first if node.is_a? Array # Should check this as might not work with nested classes
+
+        if node.is_a?(Prism::ModuleNode)# && %w[UI CA].include?(node.constant_path.full_name)
+          return class_node(node&.body&.body)
+        else
+          return node if node.is_a?(Prism::ClassNode) && node.constant_path.full_name.end_with?("Component")
+        end           
+
+        return false
+      end
+
       def transform_class_name(class_name)
         class_name
           .gsub(/([A-Z])([A-Z])/, '\1_\2') # Insert underscore between consecutive uppercase letters (e.g., "CA" → "C_A")
@@ -83,15 +92,10 @@ module RubyLsp
         param_parts = []
 
         # Process required parameters
-        parameters_node.requireds.each do |req|
-          param_parts << req.name.to_s
-        end
+        parameters_node.requireds.each { param_parts << it.name.to_s }
 
         # Process optional parameters
-        parameters_node.optionals.each do |opt|
-          default_value = extract_node_value(opt.value)
-          param_parts << "#{opt.name} = #{default_value}"
-        end
+        parameters_node.optionals.each { param_parts << "#{it.name} = #{extract_node_value(it.value)}" }
 
         # Process keyword parameters
         parameters_node.keywords.each do |kw|
@@ -102,31 +106,19 @@ module RubyLsp
            # Required keywords don't have a default value
            param_parts << "#{kw.name}:"
          end
-
-          # log(kw&.value&.nil?)
-          # default_value = kw.value.nil? ? '' : extract_node_value(kw.value)
-          # param_parts << "#{kw.name}: #{default_value}"
         end
 
         # Process keyword rest parameter
-        if parameters_node.keyword_rest
-          param_parts << "**#{parameters_node.keyword_rest.name}"
-        end
+        param_parts << "**#{parameters_node.keyword_rest.name}" if parameters_node.keyword_rest
 
         # Process rest parameter
-        if parameters_node.rest && parameters_node.rest.name
-          param_parts << "*#{parameters_node.rest.name}"
-        end
+        param_parts << "*#{parameters_node.rest.name}" if parameters_node.rest && parameters_node.rest.name
 
         # Process post parameters
-        parameters_node.posts.each do |post|
-          param_parts << post.name.to_s
-        end
+        parameters_node.posts.each { param_parts << it.name.to_s }
 
         # Process block parameter
-        if parameters_node.block
-          param_parts << "&#{parameters_node.block.name}"
-        end
+        param_parts << "&#{parameters_node.block.name}" if parameters_node.block
 
         # Build insert text with tabstops
         insert_parts = []
@@ -168,24 +160,15 @@ module RubyLsp
 
       def extract_node_value(node)
         case node
-        when Prism::FalseNode
-          "false"
-        when Prism::TrueNode
-          "true"
-        when Prism::NilNode
-          "nil"
-        when Prism::IntegerNode
-          node.value.to_s
-        when Prism::FloatNode
-          node.value.to_s
-        when Prism::StringNode
-          "\"#{node.unescaped}\""
-        when Prism::SymbolNode
-          ":#{node.value}"
-        when Prism::ArrayNode
-          "[#{node.elements.map { |e| extract_node_value(e) }.join(', ')}]"
-        when Prism::HashNode
-          "{#{node.elements.map { |e| "#{extract_node_value(e.key)} => #{extract_node_value(e.value)}" }.join(', ')}}"
+        when Prism::FalseNode   then "false"
+        when Prism::TrueNode    then "true"
+        when Prism::NilNode     then "nil"
+        when Prism::IntegerNode then node.value.to_s
+        when Prism::FloatNode   then node.value.to_s
+        when Prism::StringNode  then "\"#{node.unescaped}\""
+        when Prism::SymbolNode  then ":#{node.value}"
+        when Prism::ArrayNode   then "[#{node.elements.map { |e| extract_node_value(e) }.join(', ')}]"
+        when Prism::HashNode    then "{#{node.elements.map { |e| "#{extract_node_value(e.key)} => #{extract_node_value(e.value)}" }.join(', ')}}"
         else
           # Default for more complex expressions
           node.location.slice
