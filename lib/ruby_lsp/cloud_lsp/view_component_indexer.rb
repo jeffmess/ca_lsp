@@ -1,16 +1,21 @@
+# typed: true
 require 'yard'
 
 module RubyLsp
   module CloudLsp
     class ViewComponentIndexer
+      extend T::Sig
+
       attr_reader :docs, :deps
 
+      sig { params(path: String).void }
       def initialize(path)
         @path = path
         @deps = {}
         @docs = {}
       end
 
+      sig { returns(T.nilable([T::Hash[T.untyped, T.untyped], T::Hash[T.untyped, T.untyped]])) }
       def index
         STDERR.puts "Indexing View Components"
 
@@ -34,7 +39,6 @@ module RubyLsp
       def parse
         @deps.each do |key, value|
           component_path = "#{@path}/app/components/#{transform_class_name(value)}"
-          # STDERR.puts "Attempting to process #{component_path}"
           next unless File.exist?(component_path)
 
           file_code  = File.read(component_path)
@@ -67,12 +71,15 @@ module RubyLsp
         return node if node.is_a?(Prism::ClassNode)
         return false if node.nil?
 
-        node = node.first if node.is_a? Array # Should check this as might not work with nested classes
+        node = node.first if node.is_a? Array
 
-        if node.is_a?(Prism::ModuleNode)# && %w[UI CA].include?(node.constant_path.full_name)
-          return class_node(node&.body&.body)
-        else
-          return node if node.is_a?(Prism::ClassNode) && node.constant_path.full_name.end_with?("Component")
+        if node.is_a?(Prism::ModuleNode)
+          return class_node(node.body&.body)
+        elsif node.is_a?(Prism::ClassNode)
+          # constant_node = T.let(node.constant_path, T.any(Prism::ConstantPathNode, Prism::ConstantReadNode))
+          # return false if node.constant_path.is_a?(Prism::CallNode)
+          
+          return node if node.constant_path.full_name&.end_with?("Component")
         end           
 
         return false
