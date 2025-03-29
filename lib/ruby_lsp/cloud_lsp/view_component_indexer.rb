@@ -73,13 +73,10 @@ module RubyLsp
 
         node = node.first if node.is_a? Array
 
-        if node.is_a?(Prism::ModuleNode)
+        if node.is_a?(Prism::ModuleNode)           
           return class_node(node.body&.body)
         elsif node.is_a?(Prism::ClassNode)
-          # constant_node = T.let(node.constant_path, T.any(Prism::ConstantPathNode, Prism::ConstantReadNode))
-          # return false if node.constant_path.is_a?(Prism::CallNode)
-          
-          return node if node.constant_path.full_name&.end_with?("Component")
+          return node          
         end           
 
         return false
@@ -99,10 +96,10 @@ module RubyLsp
         param_parts = []
 
         # Process required parameters
-        parameters_node.requireds.each { param_parts << it.name.to_s }
+        parameters_node.requireds.each { |it| param_parts << it.name.to_s }
 
         # Process optional parameters
-        parameters_node.optionals.each { param_parts << "#{it.name} = #{extract_node_value(it.value)}" }
+        parameters_node.optionals.each { |it| param_parts << "#{it.name} = #{extract_node_value(it.value)}" }
 
         # Process keyword parameters
         parameters_node.keywords.each do |kw|
@@ -122,7 +119,7 @@ module RubyLsp
         param_parts << "*#{parameters_node.rest.name}" if parameters_node.rest && parameters_node.rest.name
 
         # Process post parameters
-        parameters_node.posts.each { param_parts << it.name.to_s }
+        parameters_node.posts.each { |it| param_parts << it.name.to_s }
 
         # Process block parameter
         param_parts << "&#{parameters_node.block.name}" if parameters_node.block

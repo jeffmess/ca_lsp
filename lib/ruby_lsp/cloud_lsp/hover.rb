@@ -1,4 +1,3 @@
-# typed: true
 require 'ruby_lsp/addon'
 
 module RubyLsp
@@ -20,19 +19,13 @@ module RubyLsp
         @helpers_hash     = helpers_hash
         @docs             = docs
 
-        dispatcher.register(self, :on_constant_read_node_enter, :on_call_node_enter)
+        dispatcher.register(self, :on_call_node_enter)
       end
 
       def on_call_node_enter(node)
         docs = @docs[node.name]
 
         @response_builder.push(docs[:yard_doc], category: :documentation)
-      end
-
-      # Listeners must define methods for each event they registered with the dispatcher. In this case, we have to
-      # define `on_constant_read_node_enter` to specify what this listener should do every time we find a constant
-      def on_constant_read_node_enter(node)
-        @response_builder.push("Hello!", category: :documentation)
       end
     end
   end

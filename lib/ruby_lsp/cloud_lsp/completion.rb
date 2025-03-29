@@ -1,4 +1,3 @@
-# typed: false
 require 'ruby_lsp/addon'
 
 module RubyLsp
