@@ -112,9 +112,10 @@ module RubyLsp
           dispatcher: Prism::Dispatcher,
         ).void
       end
-      def dry_definition_listener(response_builder, uri, node_context, dispatcher)
+      def dry_definition_listener(response_builder, uri, node_context, dispatcher)        
         return unless node_context.node.is_a?(Prism::SymbolNode) ||
-                      node_context.node.is_a?(Prism::StringNode)
+                      node_context.node.is_a?(Prism::StringNode) ||
+                      node_context.node.is_a?(Prism::CallNode)
         
         data = DryContainerIndexer::NameCollector.new
         source = File.read(T.must(uri.path))
