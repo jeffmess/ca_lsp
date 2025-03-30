@@ -99,6 +99,8 @@ module RubyLsp
         dry_definition_listener(response_builder, uri, node_context, dispatcher)
 
         return if node_context.node.is_a? Prism::SymbolNode # We do not process symbol nodes for view components
+        return if node_context.node.is_a? Prism::ProgramNode # Copilot doing something strang here?
+        return unless node_context.node.respond_to?(:name)
         return unless T.must(@deps)[node_context.node.name]
 
         Definition.new(response_builder, @deps, @docs, dispatcher)
