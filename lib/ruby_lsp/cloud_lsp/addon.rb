@@ -8,19 +8,20 @@ require_relative "dry_container_indexer"
 require_relative "hover"
 require_relative "completion"
 require_relative "definition"
+require_relative "logger"
 
 module RubyLsp
   module CloudLsp
-
     class Addon < ::RubyLsp::Addon
       extend T::Sig
+      include Logger
 
       sig { void }
       def initialize
         super
 
         @view_component_indexer = T.let(nil, T.nilable(ViewComponentIndexer))
-        @dry_container_indexer  = T.let(nil, DryContainerIndexer)
+        @dry_container_indexer  = T.let(nil, T.nilable(DryContainerIndexer))
         @deps                   = T.let({}, T.nilable(T::Hash[T.untyped, T.untyped]))
         @docs                   = T.let(nil, T.nilable(T::Hash[T.untyped, T.untyped]))
         @di_deps                = T.let({}, T::Hash[T.untyped, T.untyped])
@@ -30,8 +31,8 @@ module RubyLsp
       
       sig { params(global_state: T.untyped, message_queue: T.untyped).void }
       def activate(global_state, message_queue)
-        STDERR.puts "[Cloud LSP] Activating the Cloud LSP #{version}"
-        STDERR.puts "[Cloud LSP] Initializing from #{Dir.pwd}"
+        log "Activating..."
+        log "Initializing from #{Dir.pwd}"
 
         time = Time.now.to_i
         @view_component_indexer ||= ViewComponentIndexer.new(Dir.pwd)
@@ -39,11 +40,8 @@ module RubyLsp
         @deps, @docs             = @view_component_indexer.index
         @di_deps, @di_resolutions, @di_files = @dry_container_indexer.index
 
-        STDERR.puts "[CloudLSP] Indexing Duration: #{Time.now.to_i - time} seconds"
-        # STDERR.puts @di_files.keys
-
-        # STDERR.puts @deps.keys
-        STDERR.puts "[CloudLSP] loaded successfully."
+        log "Indexing took #{Time.now.to_i - time} seconds"
+        log "loaded successfully"
       end
 
       sig { void }
@@ -70,9 +68,7 @@ module RubyLsp
         ).void
       end
       def create_completion_listener(response_builder, node_context, dispatcher, uri)
-        STDERR.puts "[CloudLSP] #{uri}"
         if T.must(uri.path).end_with? '.haml'
-          STDERR.puts "[CloudLSP]: Working on #{uri}"
           Completion.new(response_builder, @deps, @docs, dispatcher)
         end
       end
@@ -117,6 +113,9 @@ module RubyLsp
         ).void
       end
       def dry_definition_listener(response_builder, uri, node_context, dispatcher)
+        return unless node_context.node.is_a?(Prism::SymbolNode) ||
+                      node_context.node.is_a?(Prism::StringNode)
+        
         data = DryContainerIndexer::NameCollector.new
         source = File.read(T.must(uri.path))
         parsed = Prism.parse(source)

@@ -1,10 +1,12 @@
 # typed: true
 require 'yard'
+require_relative 'logger'
 
 module RubyLsp
   module CloudLsp
     class ViewComponentIndexer
       extend T::Sig
+      include Logger
 
       attr_reader :docs, :deps
 
@@ -17,7 +19,7 @@ module RubyLsp
 
       sig { returns(T.nilable([T::Hash[T.untyped, T.untyped], T::Hash[T.untyped, T.untyped]])) }
       def index
-        STDERR.puts "Indexing View Components"
+        log "Indexing View Components"
 
         file_path = "#{@path}/app/helpers/cloud/view_helper.rb"
         return unless File.exist?(file_path)
@@ -57,11 +59,40 @@ module RubyLsp
 
           # Perform yard documentation
           class_docs = YARD::Registry.at(value).docstring
-          method_docs = YARD::Registry.at("#{value}#initialize").tags.map do |tag|
-            "  #{tag.tag_name} #{tag.name} [#{tag.types&.join(', ')}]: #{tag.text}\n"
+          method_docs = YARD::Registry.at("#{value}#initialize").tags
+          example_docs = method_docs.select { |tag| tag.tag_name == "example" }.map do |tag|
+            <<~HOVER
+              ```ruby
+              # #{tag.name}
+              #{tag.text}
+              ```
+            HOVER
+          end
+          example_docs = "## Examples\n#{example_docs.join}" if example_docs.any?
+
+          param_docs = method_docs.select { |tag| tag.tag_name == "param" }.map do |tag|
+            <<~HOVER
+              - **@param** #{tag.name} `#{tag.types[0]}` *#{tag.text}* 
+            HOVER
           end
 
-          docos = "#{class_docs}\n--------------\n#{method_docs.join}"
+          param_docs = if param_docs.any?
+            <<~HOVER
+            ## Params
+            #{param_docs.join}
+            HOVER
+          else
+            nil
+          end
+
+          docos = <<~HOVER
+            # #{value}
+            ## Docs: `#{class_docs}`
+            ---
+            #{param_docs}
+            #{example_docs}
+            *#{component_path}*
+          HOVER
 
           @docs[key] = format_parameters_for_completion(initialize_node.parameters, docos).merge(path: component_path)
         end

@@ -1,9 +1,12 @@
 # typed: true
 
+require_relative 'logger'
+
 module RubyLsp
   module CloudLsp
     class DryContainerIndexer
       extend T::Sig
+      include Logger
 
       sig { returns(T.nilable(Hash)) }
       attr_reader :deps
@@ -21,6 +24,7 @@ module RubyLsp
         deps = Dir["#{@path}/config/**/*.rb"].find do |file|
           File.read(file).include?("Dry::Container::Mixin")
         end
+        log "Found Dry::Container at #{deps}"
 
         parse_result = Prism.parse_file(deps)
         data = RegisterCallCollector.new
