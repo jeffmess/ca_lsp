@@ -38,12 +38,10 @@ module RubyLsp
         @view_component_indexer ||= ViewComponentIndexer.new(Dir.pwd)
         @dry_container_indexer  ||= DryContainerIndexer.new(Dir.pwd)
         @deps, @docs             = @view_component_indexer.index
-
         @di_deps, @di_resolutions, @di_files = @dry_container_indexer.index
-        # STDERR.puts "[CloudLSP] #{@di_deps}"
-        # STDERR.puts "[CLOUDLSP] #{@di_resolutions}"
-        # STDERR.puts "[LSP] -> #{@di_files}"
+
         STDERR.puts "[CloudLSP] Indexing Duration: #{Time.now.to_i - time} seconds"
+        # STDERR.puts @di_files.keys
 
         # STDERR.puts @deps.keys
         STDERR.puts "[CloudLSP] loaded successfully."
@@ -87,7 +85,7 @@ module RubyLsp
           dispatcher: Prism::Dispatcher
         ).void
       end
-      def create_hover_listener(response_builder, node_context, dispatcher)
+      def create_hover_listener(response_builder, node_context, dispatcher)      
         return unless node_context.node.respond_to? :name
         return unless T.must(@deps)[node_context.node.name]
 
@@ -128,9 +126,7 @@ module RubyLsp
         return if data.key.nil?
         return unless @di_deps.values.include? data.key
 
-        STDERR.puts node_context.node.inspect
         name = node_context.node.is_a?(Prism::SymbolNode) ? node_context.node.unescaped : node_context.node.name.to_s
-        STDERR.puts "NAME: #{name}"
 
         class_name = @di_resolutions[data.key][name]
         return unless @di_resolutions[data.key]
@@ -138,6 +134,8 @@ module RubyLsp
         return unless @di_deps[class_name]
 
         file = @di_files[@di_deps[class_name]]
+
+        return unless file
 
         response_builder << RubyLsp::Interface::Location.new(
           uri: "file://#{file}",

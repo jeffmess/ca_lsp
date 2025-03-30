@@ -25,7 +25,6 @@ module RubyLsp
         deps = Dir["#{@path}/config/**/*.rb"].find do |file|
           File.read(file).include?("Dry::Container::Mixin")
         end
-        STDERR.puts "  found: #{deps}"
 
         parse_result = Prism.parse_file(deps)
         data = RegisterCallCollector.new
@@ -41,9 +40,8 @@ module RubyLsp
           parsed = Prism.parse(source)
           data.reset
           data.visit(parsed.value)
-          # STDERR.puts "-------> #{data.mapping} --> #{file} --> data.key"
+
           next if data.key.nil?
-          # STDERR.puts "#{data.key}"
           next unless @deps.values.include? data.key
 
           @files[data.key] = file
@@ -86,16 +84,20 @@ module RubyLsp
         end
 
         def visit_class_node(node)
-          # class_name = node.constant_path.source
           class_name = constant_name(node.constant_path)
           return unless class_name
 
-          full_name = [*@module_stack, class_name].join("::")
+          @module_stack.push(class_name)
+
+          # full_name = [*@module_stack, class_name].join("::")
+          full_name = @module_stack.join("::")
 
           @mapping[full_name] ||= {}
           @current_class = full_name
           super
-          @current_class = nil
+          @module_stack.pop
+          @current_class = @module_stack.nil? ? nil : @module_stack.join("::")
+          # @current_class = nil
         end
 
         def visit_call_node(node)
@@ -115,7 +117,7 @@ module RubyLsp
           end
         end
         def key
-          @mapping.keys[0]
+          @mapping.keys.last
         end
       end
       # x = NameCollector.new
@@ -148,10 +150,14 @@ module RubyLsp
           class_name = constant_name(node.constant_path)
           return unless class_name
 
-          full_name = [*@module_stack, class_name].join("::")
+          @module_stack.push(class_name)
+          full_name = @module_stack.join("::")
+
+          # full_name = [*@module_stack, class_name].join("::")
           @mapping[full_name] ||= {}
           @current_class = full_name
           super
+          @module_stack.pop
           @current_class = nil
         end
 
@@ -161,14 +167,11 @@ module RubyLsp
           # return unless node.receiver.is_a?(Prism::ConstantReadNode) && node.receiver.name == "DI"
 
           first_arg = node.arguments&.arguments.first # why?
-          # puts "FIRST ARG: #{first_arg.name}"
           return unless first_arg.is_a?(Prism::CallNode)
           return unless first_arg.name == :[]
           return unless first_arg.receiver.is_a?(Prism::ConstantReadNode) && first_arg.receiver&.name == :DI
-          # return unless first_arg.is_a?(Prism::ArrayNode)
           #
           first_arg_args = first_arg.arguments&.arguments
-          puts "FIRS ARG ARGS: #{first_arg_args}"
           return unless first_arg_args&.any?
 
           first_arg_args.each do |element|
