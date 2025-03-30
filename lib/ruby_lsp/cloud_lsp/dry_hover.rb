@@ -2,10 +2,12 @@ require 'ruby_lsp/addon'
 
 module RubyLsp
   module CloudLsp
-    class Hover
+    class DryHover
       include Requests::Support::Common
 
       def initialize(response_builder, helpers_hash, docs, dispatcher)
+        STDERR.puts "[CloudLSP] Initialize DryHover"
+
         @response_builder = response_builder
         @helpers_hash     = helpers_hash
         @docs             = docs

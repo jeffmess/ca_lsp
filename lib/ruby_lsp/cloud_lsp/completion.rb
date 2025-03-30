@@ -1,4 +1,3 @@
-# typed: false
 require 'ruby_lsp/addon'
 
 module RubyLsp
@@ -27,7 +26,7 @@ module RubyLsp
           @response_builder << RubyLsp::Interface::CompletionItem.new(
             label: key,
             kind: RubyLsp::Constant::CompletionItemKind::VARIABLE,
-            detail: yard,
+            detail: signature, #yard,
             documentation: {
               kind: "markdown",
               value: "Custom method from your addon"
