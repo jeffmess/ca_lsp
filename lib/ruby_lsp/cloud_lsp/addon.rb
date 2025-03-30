@@ -34,16 +34,16 @@ module RubyLsp
         STDERR.puts "[Cloud LSP] Activating the Cloud LSP #{version}"
         STDERR.puts "[Cloud LSP] Initializing from #{Dir.pwd}"
 
+        time = Time.now.to_i
         @view_component_indexer ||= ViewComponentIndexer.new(Dir.pwd)
         @dry_container_indexer  ||= DryContainerIndexer.new(Dir.pwd)
         @deps, @docs             = @view_component_indexer.index
 
-        time = Time.now.to_i
         @di_deps, @di_resolutions, @di_files = @dry_container_indexer.index
         # STDERR.puts "[CloudLSP] #{@di_deps}"
         # STDERR.puts "[CLOUDLSP] #{@di_resolutions}"
-        STDERR.puts "[LSP] -> #{@di_files}"
-        STDERR.puts "INDEXING TOOK: #{Time.now.to_i - time} seconds"
+        # STDERR.puts "[LSP] -> #{@di_files}"
+        STDERR.puts "[CloudLSP] Indexing Duration: #{Time.now.to_i - time} seconds"
 
         # STDERR.puts @deps.keys
         STDERR.puts "[CloudLSP] loaded successfully."
@@ -103,7 +103,8 @@ module RubyLsp
         ).void
       end
       def create_definition_listener(response_builder, uri, node_context, dispatcher)
-        dry_definition_listener(response_builder, node_context, dispatcher)
+        STDERR.puts "GD -> #{node_context.node.name} | #{uri}"
+        dry_definition_listener(response_builder, uri, node_context, dispatcher)
         return unless T.must(@deps)[node_context.node.name]
 
         Definition.new(response_builder, @deps, @docs, dispatcher)
@@ -116,9 +117,32 @@ module RubyLsp
           dispatcher: Prism::Dispatcher,
         ).void
       end
-      def dry_definition_listener(response_builder, node_context, dispatcher)
-        STDERR.puts "[Cloud LSP]:: #{node_context.node.name}"
-        DryDefinition.new(response_builder, T.must(@dry_container_indexer).deps, dispatcher)
+      def dry_definition_listener(response_builder, uri, node_context, dispatcher)
+        data = DryContainerIndexer::NameCollector.new
+        source = File.read(uri.path)
+        parsed = Prism.parse(source)
+        data.visit(parsed.value)
+
+        return if data.key.nil?
+        return unless @di_deps.values.include? data.key
+
+        class_name = @di_resolutions[data.key][node_context.node.name.to_s]
+        return unless @di_resolutions[data.key]
+        return unless @di_resolutions[data.key][node_context.node.name.to_s]
+        return unless @di_deps[class_name]
+
+        file = @di_files[@di_deps[class_name]]
+
+        response_builder << RubyLsp::Interface::Location.new(
+          uri: "file://#{file}",
+          range: RubyLsp::Interface::Range.new(
+            start: RubyLsp::Interface::Position.new(
+              line: 1,
+              character: 1,
+            ),
+            end: RubyLsp::Interface::Position.new(line: 1, character: 1),
+          ),
+        )
       end
     end
   end
