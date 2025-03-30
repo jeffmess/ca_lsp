@@ -24,6 +24,9 @@ module RubyLsp
         @dry_container_indexer  = T.let(nil, T.nilable(DryContainerIndexer))
         @deps                   = T.let({}, T.nilable(T::Hash[T.untyped, T.untyped]))
         @docs                   = T.let(nil, T.nilable(T::Hash[T.untyped, T.untyped]))
+        @di_deps                = T.let({}, T::Hash[T.untyped, T.untyped])
+        @di_resolutions         = T.let({}, T::Hash[T.untyped, T.untyped])
+        @di_files               = T.let({}, T::Hash[T.untyped, T.untyped])
       end
       
       sig { params(global_state: T.untyped, message_queue: T.untyped).void }
@@ -33,10 +36,14 @@ module RubyLsp
 
         @view_component_indexer ||= ViewComponentIndexer.new(Dir.pwd)
         @dry_container_indexer  ||= DryContainerIndexer.new(Dir.pwd)
-        @deps, @docs              = @view_component_indexer.index
+        @deps, @docs             = @view_component_indexer.index
 
-        @dry_container_indexer.index
-        STDERR.puts "[CloudLSP] #{@dry_container_indexer.deps}"
+        time = Time.now.to_i
+        @di_deps, @di_resolutions, @di_files = @dry_container_indexer.index
+        # STDERR.puts "[CloudLSP] #{@di_deps}"
+        # STDERR.puts "[CLOUDLSP] #{@di_resolutions}"
+        STDERR.puts "[LSP] -> #{@di_files}"
+        STDERR.puts "INDEXING TOOK: #{Time.now.to_i - time} seconds"
 
         # STDERR.puts @deps.keys
         STDERR.puts "[CloudLSP] loaded successfully."
