@@ -103,8 +103,9 @@ module RubyLsp
         ).void
       end
       def create_definition_listener(response_builder, uri, node_context, dispatcher)
-        STDERR.puts "GD -> #{node_context.node.name} | #{uri}"
         dry_definition_listener(response_builder, uri, node_context, dispatcher)
+
+        return if node_context.node.is_a? Prism::SymbolNode # We do not process symbol nodes for view components
         return unless T.must(@deps)[node_context.node.name]
 
         Definition.new(response_builder, @deps, @docs, dispatcher)
@@ -113,6 +114,7 @@ module RubyLsp
       sig do
         params(
           response_builder: ResponseBuilders::CollectionResponseBuilder,
+          uri: URI::Generic,
           node_context: NodeContext,
           dispatcher: Prism::Dispatcher,
         ).void
@@ -126,9 +128,13 @@ module RubyLsp
         return if data.key.nil?
         return unless @di_deps.values.include? data.key
 
-        class_name = @di_resolutions[data.key][node_context.node.name.to_s]
+        STDERR.puts node_context.node.inspect
+        name = node_context.node.is_a?(Prism::SymbolNode) ? node_context.node.unescaped : node_context.node.name.to_s
+        STDERR.puts "NAME: #{name}"
+
+        class_name = @di_resolutions[data.key][name]
         return unless @di_resolutions[data.key]
-        return unless @di_resolutions[data.key][node_context.node.name.to_s]
+        return unless @di_resolutions[data.key][name]
         return unless @di_deps[class_name]
 
         file = @di_files[@di_deps[class_name]]
