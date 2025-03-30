@@ -10,18 +10,14 @@ module RubyLsp
 
       sig { params(path: String).void }
       def initialize(path)
-        @path = path
-        @deps = T.let({}, T::Hash[T.untyped, T.untyped])
+        @path       = path
+        @deps       = T.let({}, T::Hash[T.untyped, T.untyped])
         @resolution = T.let({}, T::Hash[T.untyped, T.untyped])
-        @files = T.let({}, T::Hash[T.untyped, T.untyped])
+        @files      = T.let({}, T::Hash[T.untyped, T.untyped])
       end
 
-      sig { returns(T::Array[T::Hash[T.untyped, T.untyped]]) }
+      sig { returns([T::Hash[T.untyped, T.untyped], T::Hash[T.untyped, T.untyped], T::Hash[T.untyped, T.untyped]]) }
       def index
-        # Currently does double the amount of work it needs to
-        # TODO: refactor
-        STDERR.puts "Indexing Dry Container"
-
         deps = Dir["#{@path}/config/**/*.rb"].find do |file|
           File.read(file).include?("Dry::Container::Mixin")
         end
@@ -32,7 +28,6 @@ module RubyLsp
 
         @deps = data.mapping
         dependency_resolution
-
 
         data = NameCollector.new
         Dir["#{@path}/app/**/*.rb"].each do |file|
@@ -72,9 +67,9 @@ module RubyLsp
         end
 
         def reset
-          @module_stack = []
+          @module_stack  = []
           @current_class = nil
-          @mapping = {}
+          @mapping       = {}
         end
 
         def visit_module_node(node)
@@ -89,7 +84,6 @@ module RubyLsp
 
           @module_stack.push(class_name)
 
-          # full_name = [*@module_stack, class_name].join("::")
           full_name = @module_stack.join("::")
 
           @mapping[full_name] ||= {}
@@ -97,7 +91,6 @@ module RubyLsp
           super
           @module_stack.pop
           @current_class = @module_stack.nil? ? nil : @module_stack.join("::")
-          # @current_class = nil
         end
 
         def visit_call_node(node)
@@ -120,12 +113,6 @@ module RubyLsp
           @mapping.keys.last
         end
       end
-      # x = NameCollector.new
-      # x.visit(data.value)
-
-      # data = Prism.parse_file('/Users/jeff/projects/ruby/cloudassess/app/services/services/onboarding/enrol_myself.rb')
-      # x = ResolutionIncludeCollector.new
-      # x.visit(data.value)
 
       class ResolutionIncludeCollector < Prism::Visitor
         attr_reader :mapping
@@ -138,22 +125,18 @@ module RubyLsp
         end
 
         def visit_module_node(node)
-          # @module_stack.push(node.constant_path.source) if node.constant_path
-
           @module_stack.push(constant_name(node.constant_path)) if node.constant_path
           super
           @module_stack.pop
         end
 
         def visit_class_node(node)
-          # class_name = node.constant_path.source
           class_name = constant_name(node.constant_path)
           return unless class_name
 
           @module_stack.push(class_name)
           full_name = @module_stack.join("::")
 
-          # full_name = [*@module_stack, class_name].join("::")
           @mapping[full_name] ||= {}
           @current_class = full_name
           super
@@ -162,35 +145,29 @@ module RubyLsp
         end
 
         def visit_call_node(node)
-          # puts "CALL NODE: #{node.name} RECEIVED BY: #{node.receiver&.name} <#{node.receiver}>"
           return unless node.name == :include
-          # return unless node.receiver.is_a?(Prism::ConstantReadNode) && node.receiver.name == "DI"
 
-          first_arg = node.arguments&.arguments.first # why?
+          first_arg = node.arguments&.arguments.first
           return unless first_arg.is_a?(Prism::CallNode)
           return unless first_arg.name == :[]
-          return unless first_arg.receiver.is_a?(Prism::ConstantReadNode) && first_arg.receiver&.name == :DI
-          #
+          return unless first_arg.receiver
+          return unless first_arg.receiver.is_a?(Prism::ConstantReadNode) && T.cast(first_arg.receiver, Prism::ConstantReadNode).name == :DI
+
           first_arg_args = first_arg.arguments&.arguments
           return unless first_arg_args&.any?
 
           first_arg_args.each do |element|
             case element
             when Prism::SymbolNode
-              # include DI[:logger] -> { "logger" => "logger" }
               @mapping[@current_class][element.value.to_s] = element.value.to_s
-            when Prism::AssocNode
-              # include DI[myself: 'services.onboarding.enrol_myself']
-              key = element.key
-              values = element.value
-
-              if key.is_a?(Prism::SymbolNode) && value.is_a?(Prism::StringNode)
-                @mapping[@current_class][key.value.to_s] = value.unescaped
-              end
             when Prism::KeywordHashNode
               element.elements.each do |el|
+                el = T.cast(el, Prism::AssocNode)
                 if el.key.is_a?(Prism::SymbolNode) && el.value.is_a?(Prism::StringNode)
-                  @mapping[@current_class][el.key.value.to_s] = el.value.unescaped
+                  key   = T.cast(el.key, Prism::SymbolNode)
+                  value = T.cast(el.value, Prism::StringNode)
+
+                  @mapping[@current_class][key.value.to_s] = value.unescaped
                 end
               end
             else
@@ -216,8 +193,6 @@ module RubyLsp
           end
         end
       end
-
-    
 
       # require 'prism'
       # require 'debug'
@@ -295,9 +270,6 @@ module RubyLsp
           end
         end
       end
-      # parse_result = Prism.parse_file("/Users/jeff/projects/ruby/cloudassess/config/initializers/system.rb")
-      # collector = RegisterCallCollector.new
-      # collector.visit(parse_result.value)
     end
   end
 end

@@ -8,7 +8,6 @@ require_relative "dry_container_indexer"
 require_relative "hover"
 require_relative "completion"
 require_relative "definition"
-require_relative "dry_definition"
 
 module RubyLsp
   module CloudLsp
@@ -21,7 +20,7 @@ module RubyLsp
         super
 
         @view_component_indexer = T.let(nil, T.nilable(ViewComponentIndexer))
-        @dry_container_indexer  = T.let(nil, T.nilable(DryContainerIndexer))
+        @dry_container_indexer  = T.let(nil, DryContainerIndexer)
         @deps                   = T.let({}, T.nilable(T::Hash[T.untyped, T.untyped]))
         @docs                   = T.let(nil, T.nilable(T::Hash[T.untyped, T.untyped]))
         @di_deps                = T.let({}, T::Hash[T.untyped, T.untyped])
@@ -119,14 +118,15 @@ module RubyLsp
       end
       def dry_definition_listener(response_builder, uri, node_context, dispatcher)
         data = DryContainerIndexer::NameCollector.new
-        source = File.read(uri.path)
+        source = File.read(T.must(uri.path))
         parsed = Prism.parse(source)
         data.visit(parsed.value)
 
         return if data.key.nil?
         return unless @di_deps.values.include? data.key
 
-        name = node_context.node.is_a?(Prism::SymbolNode) ? node_context.node.unescaped : node_context.node.name.to_s
+        name = node_context.node.is_a?(Prism::SymbolNode) ? T.cast(node_context.node, Prism::SymbolNode).unescaped
+                                                          : node_context.node.name.to_s
 
         class_name = @di_resolutions[data.key][name]
         return unless @di_resolutions[data.key]
