@@ -130,9 +130,10 @@ module RubyLsp
         name = node_context.node.is_a?(Prism::SymbolNode) ? T.cast(node_context.node, Prism::SymbolNode).unescaped
                                                           : node_context.node.name.to_s
 
-        class_name = @di_resolutions[data.key][name]
         return unless @di_resolutions[data.key]
         return unless @di_resolutions[data.key][name]
+
+        class_name = @di_resolutions[data.key][name]
         return unless @di_deps[class_name]
 
         file = @di_files[@di_deps[class_name]]
