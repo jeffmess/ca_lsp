@@ -6,11 +6,12 @@ module RubyLsp
     class Definition
       include Requests::Support::Common
 
-      def initialize(response_builder, deps, docs, class_to_helper_mapping, service_classes, service_docs, dispatcher)
+      def initialize(response_builder, deps, docs, class_to_helper_mapping, component_classes, service_classes, service_docs, dispatcher)
         @response_builder = response_builder
         @deps             = deps
         @docs             = docs
         @class_to_helper_mapping = class_to_helper_mapping
+        @component_classes = component_classes
         @service_classes  = service_classes
         @service_docs     = service_docs
 
@@ -21,14 +22,17 @@ module RubyLsp
         # Handle direct helper method calls (existing ViewComponent functionality)
         if @docs[node.name]
           detail = @docs[node.name]
+          # Jump to the initialize method line (convert to 0-indexed for LSP)
+          line_number = detail[:initialize_line] ? detail[:initialize_line] - 1 : 0
+          
           @response_builder << RubyLsp::Interface::Location.new(
             uri: "file://#{detail[:path]}",
             range: RubyLsp::Interface::Range.new(
               start: RubyLsp::Interface::Position.new(
-                line: 1,
-                character: 1,
+                line: line_number,
+                character: 0,
               ),
-              end: RubyLsp::Interface::Position.new(line: 1, character: 1),
+              end: RubyLsp::Interface::Position.new(line: line_number, character: 0),
             ),
           )
           return
@@ -38,18 +42,40 @@ module RubyLsp
         if node.name == :new && node.receiver
           receiver_name = extract_receiver_name(node.receiver)
           if receiver_name
-            # Use the class-to-helper mapping to find the helper method
-            component_helper = @class_to_helper_mapping[receiver_name]
-            if component_helper && @docs[component_helper]
-              detail = @docs[component_helper]
+            # First check direct component classes
+            if @component_classes && @component_classes[receiver_name]
+              detail = @component_classes[receiver_name]
+              # Jump to the initialize method line (convert to 0-indexed for LSP)
+              line_number = detail[:initialize_line] ? detail[:initialize_line] - 1 : 0
+              
               @response_builder << RubyLsp::Interface::Location.new(
                 uri: "file://#{detail[:path]}",
                 range: RubyLsp::Interface::Range.new(
                   start: RubyLsp::Interface::Position.new(
-                    line: 1,
-                    character: 1,
+                    line: line_number,
+                    character: 0,
                   ),
-                  end: RubyLsp::Interface::Position.new(line: 1, character: 1),
+                  end: RubyLsp::Interface::Position.new(line: line_number, character: 0),
+                ),
+              )
+              return
+            end
+            
+            # Then check class-to-helper mapping to find the helper method
+            component_helper = @class_to_helper_mapping[receiver_name]
+            if component_helper && @docs[component_helper]
+              detail = @docs[component_helper]
+              # Jump to the initialize method line (convert to 0-indexed for LSP)
+              line_number = detail[:initialize_line] ? detail[:initialize_line] - 1 : 0
+              
+              @response_builder << RubyLsp::Interface::Location.new(
+                uri: "file://#{detail[:path]}",
+                range: RubyLsp::Interface::Range.new(
+                  start: RubyLsp::Interface::Position.new(
+                    line: line_number,
+                    character: 0,
+                  ),
+                  end: RubyLsp::Interface::Position.new(line: line_number, character: 0),
                 ),
               )
               return

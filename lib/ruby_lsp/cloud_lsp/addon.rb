@@ -5,7 +5,6 @@ require "ruby_lsp/internal"
 
 require_relative "view_component_indexer"
 require_relative "service_object_indexer"
-# require_relative "dry_container_indexer"
 require_relative "hover"
 require_relative "completion"
 require_relative "definition"
@@ -27,6 +26,7 @@ module RubyLsp
         @deps = T.let({}, T.nilable(T::Hash[T.untyped, T.untyped]))
         @docs = T.let(nil, T.nilable(T::Hash[T.untyped, T.untyped]))
         @class_to_helper_mapping = T.let({}, T.nilable(T::Hash[T.untyped, T.untyped]))
+        @component_classes = T.let({}, T.nilable(T::Hash[T.untyped, T.untyped]))
         @service_classes = T.let({}, T.nilable(T::Hash[T.untyped, T.untyped]))
         @service_docs = T.let({}, T.nilable(T::Hash[T.untyped, T.untyped]))
       end
@@ -42,6 +42,7 @@ module RubyLsp
         @service_object_indexer ||= ServiceObjectIndexer.new(Dir.pwd)
         @deps, @docs = @view_component_indexer.index
         @class_to_helper_mapping = @view_component_indexer.class_to_helper_mapping
+        @component_classes = @view_component_indexer.component_classes
         @service_classes, @service_docs = @service_object_indexer.index
 
         duration_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - time) * 1000).round(2)
@@ -81,12 +82,12 @@ module RubyLsp
         
         # Handle ViewComponent completion in HAML files
         if file_path.end_with? ".haml"
-          return Completion.new(response_builder, @deps, @docs, @class_to_helper_mapping, @service_classes, @service_docs, dispatcher, :haml)
+          return Completion.new(response_builder, @deps, @docs, @class_to_helper_mapping, @component_classes, @service_classes, @service_docs, dispatcher, :haml)
         end
 
         # Handle ServiceObject completion in Ruby files
         if file_path.end_with? ".rb"
-          return Completion.new(response_builder, @deps, @docs, @class_to_helper_mapping, @service_classes, @service_docs, dispatcher, :ruby)
+          return Completion.new(response_builder, @deps, @docs, @class_to_helper_mapping, @component_classes, @service_classes, @service_docs, dispatcher, :ruby)
         end
 
         nil
@@ -105,22 +106,22 @@ module RubyLsp
 
         # Check for ViewComponent helper methods
         if T.must(@deps)[node_context.node.name]
-          return Hover.new(response_builder, @deps, @docs, @class_to_helper_mapping, @service_classes, @service_docs, dispatcher)
+          return Hover.new(response_builder, @deps, @docs, @class_to_helper_mapping, @component_classes, @service_classes, @service_docs, dispatcher)
         end
 
         # Check for ViewComponent.new calls (prioritize this to override built-in documentation)
         if node_context.node.name == :new && node_context.node.receiver
           receiver_name = extract_receiver_name_from_node(node_context.node.receiver)
-          if receiver_name && @class_to_helper_mapping[receiver_name]
+          if receiver_name && (@class_to_helper_mapping[receiver_name] || @component_classes[receiver_name])
             log "Creating hover listener for ViewComponent: #{receiver_name}"
-            return Hover.new(response_builder, @deps, @docs, @class_to_helper_mapping, @service_classes, @service_docs, dispatcher)
+            return Hover.new(response_builder, @deps, @docs, @class_to_helper_mapping, @component_classes, @service_classes, @service_docs, dispatcher)
           end
         end
 
         # Check for ServiceObject.call methods or direct class references
         if node_context.node.name == :call && node_context.node.receiver ||
            T.must(@service_classes).keys.any? { |class_name| class_name.include?(node_context.node.name.to_s) }
-          return Hover.new(response_builder, @deps, @docs, @class_to_helper_mapping, @service_classes, @service_docs, dispatcher)
+          return Hover.new(response_builder, @deps, @docs, @class_to_helper_mapping, @component_classes, @service_classes, @service_docs, dispatcher)
         end
 
         nil
@@ -173,18 +174,18 @@ module RubyLsp
 
         # Check for ViewComponent helper methods
         if T.must(@deps)[node_context.node.name]
-          return Definition.new(response_builder, @deps, @docs, @class_to_helper_mapping, @service_classes, @service_docs, dispatcher)
+          return Definition.new(response_builder, @deps, @docs, @class_to_helper_mapping, @component_classes, @service_classes, @service_docs, dispatcher)
         end
 
         # Check for ServiceObject.call methods
         if node_context.node.name == :call && node_context.node.receiver ||
            T.must(@service_classes).keys.any? { |class_name| class_name.include?(node_context.node.name.to_s) }
-          return Definition.new(response_builder, @deps, @docs, @class_to_helper_mapping, @service_classes, @service_docs, dispatcher)
+          return Definition.new(response_builder, @deps, @docs, @class_to_helper_mapping, @component_classes, @service_classes, @service_docs, dispatcher)
         end
 
         # Check for ViewComponent.new calls
         if node_context.node.name == :new && node_context.node.receiver
-          return Definition.new(response_builder, @deps, @docs, @class_to_helper_mapping, @service_classes, @service_docs, dispatcher)
+          return Definition.new(response_builder, @deps, @docs, @class_to_helper_mapping, @component_classes, @service_classes, @service_docs, dispatcher)
         end
 
         nil

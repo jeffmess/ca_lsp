@@ -6,11 +6,12 @@ module RubyLsp
       include Requests::Support::Common
       include Logger
 
-      def initialize(response_builder, helpers_hash, docs, class_to_helper_mapping, service_classes, service_docs, dispatcher)
+      def initialize(response_builder, helpers_hash, docs, class_to_helper_mapping, component_classes, service_classes, service_docs, dispatcher)
         @response_builder = response_builder
         @helpers_hash = helpers_hash
         @docs = docs
         @class_to_helper_mapping = class_to_helper_mapping
+        @component_classes = component_classes
         @service_classes = service_classes
         @service_docs = service_docs
 
@@ -32,7 +33,19 @@ module RubyLsp
           receiver_name = extract_receiver_name(node.receiver)
           if receiver_name
             log "Checking ViewComponent receiver: #{receiver_name}"
-            # Use the class-to-helper mapping to find the helper method
+            
+            # First check direct component classes
+            if @component_classes && @component_classes[receiver_name]
+              log "Found direct ViewComponent: #{receiver_name}"
+              docs = @component_classes[receiver_name]
+              # Push our documentation with high priority to override built-in docs
+              @response_builder.push(docs[:yard_doc], category: :documentation)
+              # Also push as a different category to ensure visibility
+              @response_builder.push("**ViewComponent:** #{docs[:yard_doc]}", category: :view_component)
+              return
+            end
+            
+            # Then check class-to-helper mapping to find the helper method
             component_helper = @class_to_helper_mapping[receiver_name]
             if component_helper && @docs[component_helper]
               log "Found ViewComponent mapping: #{receiver_name} -> #{component_helper}"
