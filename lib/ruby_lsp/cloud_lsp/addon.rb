@@ -24,15 +24,11 @@ module RubyLsp
 
         @view_component_indexer = T.let(nil, T.nilable(ViewComponentIndexer))
         @service_object_indexer = T.let(nil, T.nilable(ServiceObjectIndexer))
-        # @dry_container_indexer  = T.let(nil, T.nilable(DryContainerIndexer))
         @deps = T.let({}, T.nilable(T::Hash[T.untyped, T.untyped]))
         @docs = T.let(nil, T.nilable(T::Hash[T.untyped, T.untyped]))
         @class_to_helper_mapping = T.let({}, T.nilable(T::Hash[T.untyped, T.untyped]))
         @service_classes = T.let({}, T.nilable(T::Hash[T.untyped, T.untyped]))
         @service_docs = T.let({}, T.nilable(T::Hash[T.untyped, T.untyped]))
-        # @di_deps = T.let({}, T::Hash[T.untyped, T.untyped])
-        # @di_resolutions = T.let({}, T::Hash[T.untyped, T.untyped])
-        # @di_files = T.let({}, T::Hash[T.untyped, T.untyped])
       end
 
       sig { params(global_state: T.untyped, message_queue: T.untyped).void }
@@ -41,16 +37,15 @@ module RubyLsp
         log "Activating..."
         log "Initializing from #{Dir.pwd}"
 
-        time = Time.now.to_i
+        time = Process.clock_gettime(Process::CLOCK_MONOTONIC)
         @view_component_indexer ||= ViewComponentIndexer.new(Dir.pwd)
         @service_object_indexer ||= ServiceObjectIndexer.new(Dir.pwd)
-        # @dry_container_indexer ||= DryContainerIndexer.new(Dir.pwd)
         @deps, @docs = @view_component_indexer.index
         @class_to_helper_mapping = @view_component_indexer.class_to_helper_mapping
         @service_classes, @service_docs = @service_object_indexer.index
-        # @di_deps, @di_resolutions, @di_files = @dry_container_indexer.index
 
-        log "Indexing took #{Time.now.to_i - time} seconds"
+        duration_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - time) * 1000).round(2)
+        log "Indexing took #{duration_ms}ms"
         log "loaded successfully"
       end
 
@@ -131,8 +126,6 @@ module RubyLsp
         nil
       end
 
-      private
-
       def extract_receiver_name_from_node(receiver_node)
         case receiver_node
         when Prism::ConstantReadNode
@@ -174,8 +167,6 @@ module RubyLsp
       end
 
       def create_definition_listener(response_builder, uri, node_context, dispatcher)
-        # dry_definition_listener(response_builder, uri, node_context, dispatcher)
-
         return if node_context.node.is_a? Prism::SymbolNode # We do not process symbol nodes for view components
         return if node_context.node.is_a? Prism::ProgramNode # Copilot doing something strange here?
         return unless node_context.node.respond_to?(:name)
@@ -207,43 +198,6 @@ module RubyLsp
           dispatcher: Prism::Dispatcher,
         ).void
       end
-
-      # def dry_definition_listener(response_builder, uri, node_context, dispatcher)
-      #   return unless node_context.node.is_a?(Prism::SymbolNode) ||
-      #                 node_context.node.is_a?(Prism::StringNode) ||
-      #                 node_context.node.is_a?(Prism::CallNode)
-
-      #   data = DryContainerIndexer::NameCollector.new
-      #   source = File.read(T.must(uri.path))
-      #   parsed = Prism.parse(source)
-      #   data.visit(parsed.value)
-
-      #   return if data.key.nil?
-      #   return unless @di_deps.values.include? data.key
-
-      #   name = node_context.node.is_a?(Prism::SymbolNode) ? T.cast(node_context.node, Prism::SymbolNode).unescaped : node_context.node.name.to_s
-
-      #   return unless @di_resolutions[data.key]
-      #   return unless @di_resolutions[data.key][name]
-
-      #   class_name = @di_resolutions[data.key][name]
-      #   return unless @di_deps[class_name]
-
-      #   file = @di_files[@di_deps[class_name]]
-
-      #   return unless file
-
-      #   response_builder << RubyLsp::Interface::Location.new(
-      #     uri: "file://#{file}",
-      #     range: RubyLsp::Interface::Range.new(
-      #       start: RubyLsp::Interface::Position.new(
-      #         line: 1,
-      #         character: 1,
-      #       ),
-      #       end: RubyLsp::Interface::Position.new(line: 1, character: 1),
-      #     ),
-      #   )
-      # end
     end
   end
 end
