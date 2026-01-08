@@ -1,6 +1,6 @@
 # typed: true
 
-require_relative 'logger'
+require_relative "logger"
 
 module RubyLsp
   module CloudLsp
@@ -12,14 +12,16 @@ module RubyLsp
       attr_reader :deps
 
       sig { params(path: String).void }
+
       def initialize(path)
-        @path       = path
-        @deps       = T.let({}, T::Hash[T.untyped, T.untyped])
+        @path = path
+        @deps = T.let({}, T::Hash[T.untyped, T.untyped])
         @resolution = T.let({}, T::Hash[T.untyped, T.untyped])
-        @files      = T.let({}, T::Hash[T.untyped, T.untyped])
+        @files = T.let({}, T::Hash[T.untyped, T.untyped])
       end
 
       sig { returns([T::Hash[T.untyped, T.untyped], T::Hash[T.untyped, T.untyped], T::Hash[T.untyped, T.untyped]]) }
+
       def index
         deps = Dir["#{@path}/config/**/*.rb"].find do |file|
           File.read(file).include?("Dry::Container::Mixin")
@@ -65,15 +67,16 @@ module RubyLsp
 
       class NameCollector < Prism::Visitor
         attr_reader :mapping, :module_stack
+
         def initialize
           reset
           super
         end
 
         def reset
-          @module_stack  = []
+          @module_stack = []
           @current_class = nil
-          @mapping       = {}
+          @mapping = {}
         end
 
         def visit_module_node(node)
@@ -113,6 +116,7 @@ module RubyLsp
             nil
           end
         end
+
         def key
           @mapping.keys.last
         end
@@ -168,7 +172,7 @@ module RubyLsp
               element.elements.each do |el|
                 el = T.cast(el, Prism::AssocNode)
                 if el.key.is_a?(Prism::SymbolNode) && el.value.is_a?(Prism::StringNode)
-                  key   = T.cast(el.key, Prism::SymbolNode)
+                  key = T.cast(el.key, Prism::SymbolNode)
                   value = T.cast(el.value, Prism::StringNode)
 
                   @mapping[@current_class][key.value.to_s] = value.unescaped

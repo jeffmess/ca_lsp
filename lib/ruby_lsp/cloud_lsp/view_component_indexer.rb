@@ -1,6 +1,6 @@
 # typed: true
-require 'yard'
-require_relative 'logger'
+require "yard"
+require_relative "logger"
 
 module RubyLsp
   module CloudLsp
@@ -8,24 +8,29 @@ module RubyLsp
       extend T::Sig
       include Logger
 
-      attr_reader :docs, :deps
+      attr_reader :docs, :deps, :class_to_helper_mapping
 
       sig { params(path: String).void }
+
       def initialize(path)
         @path = path
         @deps = {}
         @docs = {}
+        @class_to_helper_mapping = {}
       end
 
       sig { returns(T.nilable([T::Hash[T.untyped, T.untyped], T::Hash[T.untyped, T.untyped]])) }
+
       def index
         log "Indexing View Components"
+        log "------------------------"
 
         file_path = "#{@path}/app/helpers/cloud/view_helper.rb"
         return unless File.exist?(file_path)
 
         read_in_file(file_path)
         parse
+        build_class_to_helper_mapping
 
         return [@deps, @docs]
       end
@@ -34,7 +39,7 @@ module RubyLsp
         file_content = File.read(file_path)
         if file_content =~ /HELPERS = \{(.*?)\}/m
           helpers_content = $1 # This will give you the part between { and }
-          @deps           = eval("{#{helpers_content}}") # Convert the extracted string back into a hash
+          @deps = eval("{#{helpers_content}}") # Convert the extracted string back into a hash
         end
       end
 
@@ -43,10 +48,10 @@ module RubyLsp
           component_path = "#{@path}/app/components/#{transform_class_name(value)}"
           next unless File.exist?(component_path)
 
-          file_code  = File.read(component_path)
-          result     = Prism.parse(file_code)
-          _          = YARD.parse(component_path)
-          ast        = result.value
+          file_code = File.read(component_path)
+          result = Prism.parse(file_code)
+          _ = YARD.parse(component_path)
+          ast = result.value
           class_node = class_node(ast.statements.body)
 
           next unless class_node
@@ -77,13 +82,13 @@ module RubyLsp
           end
 
           param_docs = if param_docs.any?
-            <<~HOVER
-            ## Params
-            #{param_docs.join}
-            HOVER
-          else
-            nil
-          end
+              <<~HOVER
+                ## Params
+                #{param_docs.join}
+              HOVER
+            else
+              nil
+            end
 
           docos = <<~HOVER
             # #{value}
@@ -98,17 +103,24 @@ module RubyLsp
         end
       end
 
+      def build_class_to_helper_mapping
+        @deps.each do |helper_name, class_name|
+          @class_to_helper_mapping[class_name] = helper_name
+          log "Mapped #{class_name} -> #{helper_name}"
+        end
+      end
+
       def class_node(node)
         return node if node.is_a?(Prism::ClassNode)
         return false if node.nil?
 
         node = node.first if node.is_a? Array
 
-        if node.is_a?(Prism::ModuleNode)           
+        if node.is_a?(Prism::ModuleNode)
           return class_node(node.body&.body)
         elsif node.is_a?(Prism::ClassNode)
-          return node          
-        end           
+          return node
+        end
 
         return false
       end
@@ -116,14 +128,14 @@ module RubyLsp
       def transform_class_name(class_name)
         class_name
           .gsub(/([A-Z])([A-Z])/, '\1_\2') # Insert underscore between consecutive uppercase letters (e.g., "CA" → "C_A")
-          .gsub("::", "/")                 # Replace module separator with a slash
+          .gsub("::", "/") # Replace module separator with a slash
           .gsub(/([a-z\d])([A-Z])/, '\1_\2') # Convert CamelCase to snake_case
           .downcase + ".rb"                 # Convert to lowercase and append ".rb"
       end
 
-      def format_parameters_for_completion(parameters_node, yard_doc = '')
-        return {signature:'', text_input: '', yard: ''} if parameters_node.nil?
-          # Start building parameter strings
+      def format_parameters_for_completion(parameters_node, yard_doc = "")
+        return { signature: "", text_input: "", yard: "" } if parameters_node.nil?
+        # Start building parameter strings
         param_parts = []
 
         # Process required parameters
@@ -134,13 +146,13 @@ module RubyLsp
 
         # Process keyword parameters
         parameters_node.keywords.each do |kw|
-         if kw.is_a?(Prism::OptionalKeywordParameterNode)
-           default_value = extract_node_value(kw.value)
-           param_parts << "#{kw.name}: #{default_value}"
-         elsif kw.is_a?(Prism::RequiredKeywordParameterNode)
-           # Required keywords don't have a default value
-           param_parts << "#{kw.name}:"
-         end
+          if kw.is_a?(Prism::OptionalKeywordParameterNode)
+            default_value = extract_node_value(kw.value)
+            param_parts << "#{kw.name}: #{default_value}"
+          elsif kw.is_a?(Prism::RequiredKeywordParameterNode)
+            # Required keywords don't have a default value
+            param_parts << "#{kw.name}:"
+          end
         end
 
         # Process keyword rest parameter
@@ -167,7 +179,7 @@ module RubyLsp
             value = value.strip
 
             if param.include?(":")
-              insert_parts << "${#{tab_index}:#{key}: ${#{tab_index+1}:#{value}}}"
+              insert_parts << "${#{tab_index}:#{key}: ${#{tab_index + 1}:#{value}}}"
               tab_index += 2
             else
               insert_parts << "${#{tab_index}:#{key} = #{value}}"
@@ -187,23 +199,23 @@ module RubyLsp
 
         # Return both a readable signature and insertable snippet
         return {
-          signature: "(" + param_parts.join(", ") + ")",
-          insert_text: "(" + insert_parts.join(", ") + ")$0",
-          yard_doc: yard_doc
-        }
+                 signature: "(" + param_parts.join(", ") + ")",
+                 insert_text: "(" + insert_parts.join(", ") + ")$0",
+                 yard_doc: yard_doc,
+               }
       end
 
       def extract_node_value(node)
         case node
-        when Prism::FalseNode   then "false"
-        when Prism::TrueNode    then "true"
-        when Prism::NilNode     then "nil"
+        when Prism::FalseNode then "false"
+        when Prism::TrueNode then "true"
+        when Prism::NilNode then "nil"
         when Prism::IntegerNode then node.value.to_s
-        when Prism::FloatNode   then node.value.to_s
-        when Prism::StringNode  then "\"#{node.unescaped}\""
-        when Prism::SymbolNode  then ":#{node.value}"
-        when Prism::ArrayNode   then "[#{node.elements.map { |e| extract_node_value(e) }.join(', ')}]"
-        when Prism::HashNode    then "{#{node.elements.map { |e| "#{extract_node_value(e.key)} => #{extract_node_value(e.value)}" }.join(', ')}}"
+        when Prism::FloatNode then node.value.to_s
+        when Prism::StringNode then "\"#{node.unescaped}\""
+        when Prism::SymbolNode then ":#{node.value}"
+        when Prism::ArrayNode then "[#{node.elements.map { |e| extract_node_value(e) }.join(", ")}]"
+        when Prism::HashNode then "{#{node.elements.map { |e| "#{extract_node_value(e.key)} => #{extract_node_value(e.value)}" }.join(", ")}}"
         else
           # Default for more complex expressions
           node.location.slice
