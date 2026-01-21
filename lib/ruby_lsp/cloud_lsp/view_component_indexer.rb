@@ -2,6 +2,9 @@
 require "yard"
 require_relative "logger"
 
+# Configure YARD to log to STDERR instead of STDOUT to avoid corrupting LSP protocol
+YARD::Logger.instance.io = STDERR
+
 module RubyLsp
   module CloudLsp
     class ViewComponentIndexer

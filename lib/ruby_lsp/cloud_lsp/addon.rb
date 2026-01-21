@@ -1,5 +1,6 @@
 # typed: strict
 
+require "sorbet-runtime"
 require "ruby_lsp/addon"
 require "ruby_lsp/internal"
 
@@ -95,7 +96,7 @@ module RubyLsp
 
       sig do
         params(
-          response_builder: ResponseBuilders::CollectionResponseBuilder,
+          response_builder: ResponseBuilders::Hover,
           node_context: NodeContext,
           dispatcher: Prism::Dispatcher,
         ).void

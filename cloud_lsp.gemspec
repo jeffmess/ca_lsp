@@ -34,6 +34,8 @@ Gem::Specification.new do |spec|
 
 
   spec.add_dependency("ruby-lsp", ">= 0.23.0")
+  spec.add_dependency("sorbet-runtime")
+  spec.add_dependency("yard")
 
   # Uncomment to register a new dependency of your gem
   # spec.add_dependency "example-gem", "~> 1.0"
