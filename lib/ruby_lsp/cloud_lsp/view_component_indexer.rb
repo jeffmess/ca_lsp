@@ -1,4 +1,3 @@
-# typed: true
 require "yard"
 require_relative "logger"
 
@@ -8,12 +7,9 @@ YARD::Logger.instance.io = STDERR
 module RubyLsp
   module CloudLsp
     class ViewComponentIndexer
-      extend T::Sig
       include Logger
 
       attr_reader :docs, :deps, :class_to_helper_mapping, :component_classes
-
-      sig { params(path: String).void }
 
       def initialize(path)
         @path = path
@@ -22,8 +18,6 @@ module RubyLsp
         @class_to_helper_mapping = {}
         @component_classes = {}
       end
-
-      sig { returns(T.nilable([T::Hash[T.untyped, T.untyped], T::Hash[T.untyped, T.untyped]])) }
 
       def index
         log "Indexing View Components"
