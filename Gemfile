@@ -11,7 +11,5 @@ gem "rake", "~> 13.0"
 gem "minitest", "~> 5.16"
 group :development do
   gem "debug"
-  gem "sorbet-static-and-runtime"
-  gem "tapioca", require: false
 end
 
