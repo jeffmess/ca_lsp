@@ -1,6 +1,3 @@
-# typed: strict
-
-require "sorbet-runtime"
 require "ruby_lsp/addon"
 require "ruby_lsp/internal"
 
@@ -14,25 +11,20 @@ require_relative "logger"
 module RubyLsp
   module CloudLsp
     class Addon < ::RubyLsp::Addon
-      extend T::Sig
       include Logger
-
-      sig { void }
 
       def initialize
         super
 
-        @view_component_indexer = T.let(nil, T.nilable(ViewComponentIndexer))
-        @service_object_indexer = T.let(nil, T.nilable(ServiceObjectIndexer))
-        @deps = T.let({}, T.nilable(T::Hash[T.untyped, T.untyped]))
-        @docs = T.let(nil, T.nilable(T::Hash[T.untyped, T.untyped]))
-        @class_to_helper_mapping = T.let({}, T.nilable(T::Hash[T.untyped, T.untyped]))
-        @component_classes = T.let({}, T.nilable(T::Hash[T.untyped, T.untyped]))
-        @service_classes = T.let({}, T.nilable(T::Hash[T.untyped, T.untyped]))
-        @service_docs = T.let({}, T.nilable(T::Hash[T.untyped, T.untyped]))
+        @view_component_indexer = nil
+        @service_object_indexer = nil
+        @deps = {}
+        @docs = nil
+        @class_to_helper_mapping = {}
+        @component_classes = {}
+        @service_classes = {}
+        @service_docs = {}
       end
-
-      sig { params(global_state: T.untyped, message_queue: T.untyped).void }
 
       def activate(global_state, message_queue)
         log "Activating..."
@@ -51,35 +43,20 @@ module RubyLsp
         log "loaded successfully"
       end
 
-      sig { void }
-
       def deactivate
       end
 
       # Returns the name of the addon
-      sig { returns(String) }
-
       def name
         "Cloud LSP"
       end
-
-      sig { returns(String) }
 
       def version
         "0.1.0"
       end
 
-      sig do
-        params(
-          response_builder: ResponseBuilders::CollectionResponseBuilder,
-          node_context: NodeContext,
-          dispatcher: Prism::Dispatcher,
-          uri: URI::Generic,
-        ).void
-      end
-
       def create_completion_listener(response_builder, node_context, dispatcher, uri)
-        file_path = T.must(uri.path)
+        file_path = uri.path
         
         # Handle ViewComponent completion in HAML files
         if file_path.end_with? ".haml"
@@ -94,19 +71,11 @@ module RubyLsp
         nil
       end
 
-      sig do
-        params(
-          response_builder: ResponseBuilders::Hover,
-          node_context: NodeContext,
-          dispatcher: Prism::Dispatcher,
-        ).void
-      end
-
       def create_hover_listener(response_builder, node_context, dispatcher)
         return unless node_context.node.respond_to? :name
 
         # Check for ViewComponent helper methods
-        if T.must(@deps)[node_context.node.name]
+        if @deps[node_context.node.name]
           return Hover.new(response_builder, @deps, @docs, @class_to_helper_mapping, @component_classes, @service_classes, @service_docs, dispatcher)
         end
 
@@ -121,7 +90,7 @@ module RubyLsp
 
         # Check for ServiceObject.call methods or direct class references
         if node_context.node.name == :call && node_context.node.receiver ||
-           T.must(@service_classes).keys.any? { |class_name| class_name.include?(node_context.node.name.to_s) }
+           @service_classes.keys.any? { |class_name| class_name.include?(node_context.node.name.to_s) }
           return Hover.new(response_builder, @deps, @docs, @class_to_helper_mapping, @component_classes, @service_classes, @service_docs, dispatcher)
         end
 
@@ -159,28 +128,19 @@ module RubyLsp
         parts.join('::')
       end
 
-      sig do
-        params(
-          response_builder: ResponseBuilders::CollectionResponseBuilder,
-          uri: URI::Generic,
-          node_context: NodeContext,
-          dispatcher: Prism::Dispatcher,
-        ).void
-      end
-
       def create_definition_listener(response_builder, uri, node_context, dispatcher)
         return if node_context.node.is_a? Prism::SymbolNode # We do not process symbol nodes for view components
         return if node_context.node.is_a? Prism::ProgramNode # Copilot doing something strange here?
         return unless node_context.node.respond_to?(:name)
 
         # Check for ViewComponent helper methods
-        if T.must(@deps)[node_context.node.name]
+        if @deps[node_context.node.name]
           return Definition.new(response_builder, @deps, @docs, @class_to_helper_mapping, @component_classes, @service_classes, @service_docs, dispatcher)
         end
 
         # Check for ServiceObject.call methods
         if node_context.node.name == :call && node_context.node.receiver ||
-           T.must(@service_classes).keys.any? { |class_name| class_name.include?(node_context.node.name.to_s) }
+           @service_classes.keys.any? { |class_name| class_name.include?(node_context.node.name.to_s) }
           return Definition.new(response_builder, @deps, @docs, @class_to_helper_mapping, @component_classes, @service_classes, @service_docs, dispatcher)
         end
 
@@ -190,15 +150,6 @@ module RubyLsp
         end
 
         nil
-      end
-
-      sig do
-        params(
-          response_builder: ResponseBuilders::CollectionResponseBuilder,
-          uri: URI::Generic,
-          node_context: NodeContext,
-          dispatcher: Prism::Dispatcher,
-        ).void
       end
     end
   end

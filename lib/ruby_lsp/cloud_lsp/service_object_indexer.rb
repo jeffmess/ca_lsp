@@ -1,4 +1,3 @@
-# typed: true
 require "yard"
 require_relative "logger"
 
@@ -8,20 +7,15 @@ YARD::Logger.instance.io = STDERR
 module RubyLsp
   module CloudLsp
     class ServiceObjectIndexer
-      extend T::Sig
       include Logger
 
       attr_reader :docs, :service_classes
-
-      sig { params(path: String).void }
 
       def initialize(path)
         @path = path
         @service_classes = {}
         @docs = {}
       end
-
-      sig { returns(T.nilable([T::Hash[T.untyped, T.untyped], T::Hash[T.untyped, T.untyped]])) }
 
       def index
         log "Indexing Service Objects"
