@@ -1,5 +1,3 @@
-# typed: false
-
 module RubyLsp
   module CloudLsp
     module Logger
